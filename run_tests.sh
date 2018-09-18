@@ -23,7 +23,7 @@ for test_dir in $test_dirs; do
 done
 
 if [ "$TRAVIS_PYTHON_VERSION" != "" ]; then
-    # Use always "python" executable for all Python versions in Travis
+    # Use always "coverage" executable for all Python versions in Travis
     py_cmd="coverage"
 elif [ -f /usr/bin/coverage3 ]; then
     py_cmd="coverage3"
@@ -38,8 +38,8 @@ rc=$(($rc+$?))
 find . -iname '*.py' | xargs pylint --rcfile=../pylintrc
 rc=$(($rc+$?))
 
+# Upload to Codecov.io after success
 [ $rc -eq 0 ] && codecov
-[ $rc -eq 0 ] && coveralls
 
 exit $rc
 )
