@@ -1,6 +1,7 @@
 # VMaaS
 
-[![Build Status](https://travis-ci.org/RedHatInsights/vmaas.svg?branch=master)](https://travis-ci.org/RedHatInsights/vmaas) [![Coverage Status](https://coveralls.io/repos/github/psegedy/vmaas/badge.svg?branch=master)](https://coveralls.io/github/psegedy/vmaas?branch=master)
+[![Build Status](https://travis-ci.org/psegedy/vmaas-dummy.svg?branch=master)](https://travis-ci.org/psegedy/vmaas-dummy) 
+[![codecov](https://codecov.io/gh/psegedy/vmaas-dummy/branch/master/graph/badge.svg)](https://codecov.io/gh/psegedy/vmaas-dummy)
 
 Vulnerability Metadata as a Service
 
