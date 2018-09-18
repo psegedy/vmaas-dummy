@@ -25,7 +25,6 @@ class TestCveAPI(unittest.TestCase):
 
     def test_regex(self):
         """Test finding CVEs by regex."""
-        self.assertTrue(True)
         self.assertEqual(self.cve.find_cves_by_regex("CVE-2018-1097"), ["CVE-2018-1097"])
         self.assertIn("CVE-2018-1097", self.cve.find_cves_by_regex("CVE-2018-1.*"))
         self.assertGreater(len(self.cve.find_cves_by_regex("CVE-2018-1.*")), 1)
