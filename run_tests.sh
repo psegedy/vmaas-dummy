@@ -1,5 +1,6 @@
 #!/usr/bin/bash
 
+PWD=$(pwd)
 TESTDIR=$1
 if [ ! -d "$TESTDIR" ] ; then
     echo "usage: $(basename $0) <testdir>" >&2
@@ -41,5 +42,6 @@ rc=$(($rc+$?))
 # Upload to Codecov.io after success
 [ $rc -eq 0 ] && codecov
 
+cd $PWD
 exit $rc
 )
