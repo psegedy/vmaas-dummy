@@ -1,0 +1,237 @@
+---
+- hosts: all
+  vars:
+    apidoc_container_port: 8080
+    webapp_container_port: 8080
+    reposcan_container_port: 8081
+    apidoc_config_map: apidoc-conf-apidoc-env
+  tasks:
+    - name: Prevent run without tags
+      fail:
+        msg: "You must run this playbook with tags! Available tags: up, routes-up, down, routes-down, update-images, configure-apidoc, upgrade-start, upgrade-finish."
+
+    - name: Get current Git branch
+      command: git rev-parse --abbrev-ref HEAD
+      changed_when: False
+      register: git_branch_name
+      tags:
+        - always
+
+    - name: Get last Git commit
+      command: git rev-parse --short HEAD
+      changed_when: False
+      register: git_commit_id
+      tags:
+        - always
+      when: app_id is not defined
+
+    - name: Use Git commit id as app ID
+      set_fact:
+        app_id: "{{ git_commit_id.stdout }}"
+      tags:
+        - always
+      when: app_id is not defined
+
+    - name: Get current OpenShift project
+      command: oc project -q
+      changed_when: False
+      register: oc_project_name
+      tags:
+        - always
+
+    - name: Confirm source Git branch and target OpenShift project
+      pause: prompt="Please confirm you want to deploy Git branch '{{ git_branch_name.stdout }}' into OpenShift project '{{ oc_project_name.stdout }}'. Type 'yes' or 'no'"
+      register: oc_project_decision
+      tags:
+        - always
+
+    - name: Cancel playbook execution
+      fail:
+        msg: "Playbook execution canceled."
+      when: not (oc_project_decision.user_input | bool)
+      tags:
+        - always
+
+    - name: Create VMaaS
+      shell: kompose --provider openshift convert -o - | app_id={{ app_id }} ./scripts/openshift_setup.py | oc create -f -
+      tags:
+        - up
+        - upgrade-start
+
+    - name: Create OpenShift routes
+      shell: oc create route edge apidoc --service apidoc-{{ app_id }} --port {{ apidoc_container_port }}; oc create route edge reposcan --service reposcan-{{ app_id }} --port {{ reposcan_container_port }}; oc create route edge webapp --service webapp-{{ app_id }} --port {{ webapp_container_port }}
+      tags:
+        - up
+        - routes-up
+
+    - name: Create temporary OpenShift routes
+      shell: oc create route edge apidoc-upgrade --service apidoc-{{ app_id }} --port {{ apidoc_container_port }}; oc create route edge reposcan-upgrade --service reposcan-{{ app_id }} --port {{ reposcan_container_port }}; oc create route edge webapp-upgrade --service webapp-{{ app_id }} --port {{ webapp_container_port }}
+      tags:
+        - upgrade-start
+
+    - name: Get exposed reposcan URL
+      shell: oc get route reposcan | tail -n 1 | awk '{print $2}'
+      register: reposcan_url
+      tags:
+        - up
+        - configure-apidoc
+        - upgrade-finish
+
+    - name: Get exposed webapp URL
+      shell: oc get route webapp | tail -n 1 | awk '{print $2}'
+      register: webapp_url
+      tags:
+        - up
+        - configure-apidoc
+        - upgrade-finish
+
+    - name: Get exposed reposcan temporary URL
+      shell: oc get route reposcan-upgrade | tail -n 1 | awk '{print $2}'
+      register: reposcan_url
+      tags:
+        - upgrade-start
+
+    - name: Get exposed webapp temporary URL
+      shell: oc get route webapp-upgrade | tail -n 1 | awk '{print $2}'
+      register: webapp_url
+      tags:
+        - upgrade-start
+
+    - name: Update VMaaS images
+      shell: for image in $(grep "image:" docker-compose.yml | awk '{print $2}'); do oc import-image $image; done
+      tags:
+        - update-images
+
+    - name: Point routes to the current deployment
+      shell: oc patch route/apidoc --patch '{"spec":{"to":{"name":"apidoc-{{ app_id }}"}}}' && oc patch route/reposcan --patch '{"spec":{"to":{"name":"reposcan-{{ app_id }}"}}}' && oc patch route/webapp --patch '{"spec":{"to":{"name":"webapp-{{ app_id }}"}}}'
+      tags:
+        - upgrade-finish
+
+    - name: Delete temporary OpenShift routes
+      shell: oc delete route apidoc-upgrade reposcan-upgrade webapp-upgrade
+      tags:
+        - upgrade-finish
+      ignore_errors: True
+
+    - name: Configure API documentation
+      shell: oc rollout status dc/apidoc-{{ app_id }} && oc patch configmap {{ apidoc_config_map }}-{{ app_id }} --patch '{"data":{"API_URLS":"[{\"url\":\"https://{{ webapp_url.stdout }}/api/v1/apispec\",\"name\":\"webapp\"},{\"url\":\"https://{{ reposcan_url.stdout }}/api/v1/apispec\",\"name\":\"reposcan\"}]"}}' && oc rollout latest dc/apidoc-{{ app_id }}
+      tags:
+        - up
+        - configure-apidoc
+        - upgrade-start
+        - upgrade-finish
+
+    - name: Delete OpenShift routes
+      shell: oc delete route apidoc reposcan webapp
+      tags:
+        - down
+        - routes-down
+      ignore_errors: True
+
+    - name: Delete old Config Maps
+      shell: oc get cm | awk '{print $1}' | grep {{ item }} | grep -v {{ app_id }} | xargs oc delete cm
+      with_items:
+        - apidoc
+        - reposcan
+        - webapp
+        - database
+      tags:
+        - upgrade-finish
+      ignore_errors: True
+
+    - name: Delete old Services
+      shell: oc get svc | awk '{print $1}' | grep {{ item }} | grep -v {{ app_id }} | xargs oc delete svc
+      with_items:
+        - apidoc
+        - reposcan
+        - webapp
+        - database
+      tags:
+        - upgrade-finish
+      ignore_errors: True
+
+    - name: Delete old Deployment Configs
+      shell: oc get dc | awk '{print $1}' | grep {{ item }} | grep -v {{ app_id }} | xargs oc delete dc
+      with_items:
+        - apidoc
+        - reposcan
+        - webapp
+        - database
+      tags:
+        - upgrade-finish
+      ignore_errors: True
+
+    - name: Delete old Persistent Volume Claims
+      shell: oc get pvc | awk '{print $1}' | grep {{ item }} | grep -v {{ app_id }} | xargs oc delete pvc
+      with_items:
+        - vmaas-db-data
+        - vmaas-dump-data
+        - vmaas-reposcan-tmp
+      tags:
+        - upgrade-finish
+      ignore_errors: True
+
+    - name: Delete old Image Streams
+      shell: oc get is | awk '{print $1}' | grep {{ item }} | grep -v {{ app_id }} | xargs oc delete is
+      with_items:
+        - apidoc
+        - reposcan
+        - webapp
+        - database
+      tags:
+        - upgrade-finish
+      ignore_errors: True
+
+    - name: Delete all Config Maps
+      shell: oc get cm | awk '{print $1}' | grep {{ item }} | xargs oc delete cm
+      with_items:
+        - apidoc
+        - reposcan
+        - webapp
+        - database
+      tags:
+        - down
+      ignore_errors: True
+
+    - name: Delete all Services
+      shell: oc get svc | awk '{print $1}' | grep {{ item }} | xargs oc delete svc
+      with_items:
+        - apidoc
+        - reposcan
+        - webapp
+        - database
+      tags:
+        - down
+      ignore_errors: True
+
+    - name: Delete all Deployment Configs
+      shell: oc get dc | awk '{print $1}' | grep {{ item }} | xargs oc delete dc
+      with_items:
+        - apidoc
+        - reposcan
+        - webapp
+        - database
+      tags:
+        - down
+      ignore_errors: True
+
+    - name: Delete all Persistent Volume Claims
+      shell: oc get pvc | awk '{print $1}' | grep {{ item }} | xargs oc delete pvc
+      with_items:
+        - vmaas-db-data
+        - vmaas-dump-data
+        - vmaas-reposcan-tmp
+      tags:
+        - down
+      ignore_errors: True
+
+    - name: Delete all Image Streams
+      shell: oc get is | awk '{print $1}' | grep {{ item }} | xargs oc delete is
+      with_items:
+        - apidoc
+        - reposcan
+        - webapp
+        - database
+      tags:
+        - down
+      ignore_errors: True
