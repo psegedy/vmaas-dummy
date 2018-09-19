@@ -17,7 +17,8 @@ notifications:
 install:
   - pip install pylint psycopg2 requests tornado apispec python-dateutil jsonschema coverage codecov
 script:
-  - /bin/bash run_tests.sh reposcan webapp
+  - /bin/bash run_tests.sh reposcan
+  - /bin/bash run_tests.sh webapp
 # jobs:
 #   include:
 #     - stage: Update docker images
