@@ -35,7 +35,7 @@ else
     py_cmd="coverage"
 fi
 # Find and run tests
-$py_cmd run --source . -m unittest discover -v
+python -m unittest discover -v
 rc=$(($rc+$?))
 
 # Run pylint
