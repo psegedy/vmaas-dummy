@@ -1,6 +1,8 @@
 #!/usr/bin/bash
 
 PWD=$(pwd)
+echo "DEBUG: PWD=$PWD"
+
 TESTDIR=$1
 if [ ! -d "$TESTDIR" ] ; then
     echo "usage: $(basename $0) <testdir>" >&2
@@ -10,6 +12,7 @@ fi
 (
 # Go to script's directory
 cd "$TESTDIR"
+echo "DEBUG: PWD=$(pwd)"
 
 rc=0
 
