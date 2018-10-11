@@ -38,8 +38,8 @@ rc=$(($rc+$?))
 find . -iname '*.py' | xargs pylint --rcfile=../pylintrc
 rc=$(($rc+$?))
 
-# Upload to Codecov.io after success
-[ $rc -eq 0 ] && codecov
+# Upload to Codecov.io
+codecov
 
 exit $rc
 )
