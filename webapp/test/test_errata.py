@@ -1,6 +1,7 @@
 """Unit tests for errata module."""
 
 import datetime
+import unittest
 
 from test import schemas
 from test import tools
@@ -79,6 +80,7 @@ class TestErrataAPI(WebappTestCase):
         response = self.errata_api.process_list(api_version="v1", data=ERRATA_JSON)
         self.assertTrue(schemas.errata_schema.validate(response))
 
+    @unittest.skip("Blocked by https://github.com/RedHatInsights/vmaas/issues/419")
     def test_modified_since(self):
         """Test errata API with 'modified_since' property."""
         errata = ERRATA_JSON.copy()

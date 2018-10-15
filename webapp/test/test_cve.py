@@ -1,6 +1,7 @@
 """Unit test for CveAPI module."""
 
 import datetime
+import unittest
 
 from test import schemas, tools
 from test.webapp_test_case import WebappTestCase
@@ -93,6 +94,7 @@ class TestCveAPI(WebappTestCase):
         self.assertEqual(cve[0], CVE_JSON["cve_list"][0])
         self.assertIsNone(tools.match(CORRECT_RESPONSE, cve[1]))
 
+    @unittest.skip("Blocked by https://github.com/RedHatInsights/vmaas/issues/419")
     def test_modified_since(self):
         """Test CVE API with 'modified_since' property."""
         cve = CVE_JSON.copy()
